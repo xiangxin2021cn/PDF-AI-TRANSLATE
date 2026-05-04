@@ -1,5 +1,7 @@
 # PDF AI Translate
 
+![1777926622289](image/README/1777926622289.png)
+
 PDF AI Translate 是基于 [PDFMathTranslate / PDFMathTranslate-next](https://github.com/PDFMathTranslate/PDFMathTranslate-next) 的二次开发版，融合 BabelDOC 版式保留翻译能力，并围绕 Windows 桌面使用体验、扫描文档处理能力和中文用户工作流做了增强。
 
 本项目向 PDFMathTranslate、BabelDOC、MinerU 及其相关开源生态致敬。没有这些基础项目，PDF AI Translate 不可能快速形成一个可用的桌面与 Web 翻译工具。
@@ -13,6 +15,8 @@ Windows x64 安装包已发布在 GitHub Release：
 Release 页面：
 
 [https://github.com/xiangxin2021cn/PDF-AI-TRANSLATE/releases/tag/v2.5.9](https://github.com/xiangxin2021cn/PDF-AI-TRANSLATE/releases/tag/v2.5.9)
+
+![1777926673458](image/README/1777926673458.png)
 
 ## 这个版本做了什么
 
