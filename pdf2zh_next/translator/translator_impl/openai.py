@@ -1,0 +1,131 @@
+import logging
+
+import httpx
+import openai
+from babeldoc.utils.atomic_integer import AtomicInteger
+from pdf2zh_next.config.model import SettingsModel
+from pdf2zh_next.translator.base_rate_limiter import BaseRateLimiter
+from pdf2zh_next.translator.base_translator import BaseTranslator
+from tenacity import before_sleep_log
+from tenacity import retry
+from tenacity import retry_if_exception_type
+from tenacity import stop_after_attempt
+from tenacity import wait_exponential
+
+logger = logging.getLogger(__name__)
+
+
+class OpenAITranslator(BaseTranslator):
+    # https://github.com/openai/openai-python
+    name = "openai"
+
+    def __init__(
+        self,
+        settings: SettingsModel,
+        rate_limiter: BaseRateLimiter,
+    ):
+        super().__init__(settings, rate_limiter)
+        self.request_timeout = self._parse_timeout(
+            getattr(settings.translate_engine_settings, "openai_timeout_seconds", None)
+        )
+        self.client = openai.OpenAI(
+            base_url=settings.translate_engine_settings.openai_base_url,
+            api_key=settings.translate_engine_settings.openai_api_key,
+            timeout=self.request_timeout,
+            http_client=httpx.Client(
+                timeout=self.request_timeout,
+                limits=httpx.Limits(
+                    max_connections=None, max_keepalive_connections=None
+                )
+            ),
+        )
+        self.options = {}
+        self.temperature = settings.translate_engine_settings.openai_temperature
+        self.reasoning_effort = (
+            settings.translate_engine_settings.openai_reasoning_effort
+        )
+        self.max_tokens = settings.translate_engine_settings.openai_max_tokens
+        self.response_format = settings.translate_engine_settings.openai_response_format
+        self.thinking_type = settings.translate_engine_settings.openai_thinking_type
+        self.send_temperature = (
+            settings.translate_engine_settings.openai_send_temprature
+        )
+        self.send_reasoning_effort = (
+            settings.translate_engine_settings.openai_send_reasoning_effort
+        )
+        self.send_thinking = settings.translate_engine_settings.openai_send_thinking
+
+        if self.send_temperature and self.temperature:
+            self.add_cache_impact_parameters("temperature", self.temperature)
+            self.options["temperature"] = float(self.temperature)
+        if self.send_reasoning_effort and self.reasoning_effort:
+            self.add_cache_impact_parameters("reasoning_effort", self.reasoning_effort)
+            self.options["reasoning_effort"] = self.reasoning_effort
+        if self.max_tokens:
+            self.add_cache_impact_parameters("max_tokens", self.max_tokens)
+            self.options["max_tokens"] = int(self.max_tokens)
+        if self.response_format:
+            self.add_cache_impact_parameters("response_format", self.response_format)
+            self.options["response_format"] = {"type": self.response_format}
+        if self.send_thinking and self.thinking_type:
+            self.add_cache_impact_parameters("thinking", self.thinking_type)
+            extra_body = dict(self.options.get("extra_body") or {})
+            extra_body["thinking"] = {"type": self.thinking_type}
+            self.options["extra_body"] = extra_body
+
+        self.model = settings.translate_engine_settings.openai_model
+        self.add_cache_impact_parameters("model", self.model)
+        self.add_cache_impact_parameters("prompt", self.prompt(""))
+        self.token_count = AtomicInteger()
+        self.prompt_token_count = AtomicInteger()
+        self.completion_token_count = AtomicInteger()
+
+    def _parse_timeout(self, value) -> float | None:
+        if value in (None, ""):
+            return 90.0
+        try:
+            timeout = float(value)
+        except (TypeError, ValueError):
+            return 90.0
+        return timeout if timeout > 0 else None
+
+    @retry(
+        retry=retry_if_exception_type(openai.RateLimitError),
+        stop=stop_after_attempt(4),
+        wait=wait_exponential(multiplier=1, min=1, max=6),
+        before_sleep=before_sleep_log(logger, logging.WARNING),
+    )
+    def do_translate(self, text, rate_limit_params: dict = None) -> str:
+        response = self.client.chat.completions.create(
+            model=self.model,
+            **self.options,
+            messages=self.prompt(text),
+        )
+        self.token_count.inc(response.usage.total_tokens)
+        self.prompt_token_count.inc(response.usage.prompt_tokens)
+        self.completion_token_count.inc(response.usage.completion_tokens)
+        message = response.choices[0].message.content.strip()
+        message = self._remove_cot_content(message)
+        return message
+
+    @retry(
+        retry=retry_if_exception_type(openai.RateLimitError),
+        stop=stop_after_attempt(4),
+        wait=wait_exponential(multiplier=1, min=1, max=6),
+        before_sleep=before_sleep_log(logger, logging.WARNING),
+    )
+    def do_llm_translate(self, text, rate_limit_params: dict = None):
+        if text is None:
+            return None
+
+        response = self.client.chat.completions.create(
+            model=self.model,
+            **self.options,
+            messages=self.prompt(text),
+        )
+        self.token_count.inc(response.usage.total_tokens)
+        self.prompt_token_count.inc(response.usage.prompt_tokens)
+        self.completion_token_count.inc(response.usage.completion_tokens)
+        message = response.choices[0].message.content.strip()
+        message = self._remove_cot_content(message)
+        return message

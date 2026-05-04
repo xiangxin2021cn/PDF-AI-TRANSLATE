@@ -1,0 +1,984 @@
+import re
+import typing
+from dataclasses import dataclass
+from types import NoneType
+from typing import Literal
+from typing import TypeAlias
+
+from pydantic import BaseModel
+from pydantic import Field
+
+# any field in SENSITIVE_FIELDS will be masked in GUI
+GUI_SENSITIVE_FIELDS = []
+# any field in GUI_PASSWORD_FIELDS will be masked in GUI and treated as password
+GUI_PASSWORD_FIELDS = []
+
+
+def _clean_string(value: str | None) -> str | None:
+    """Clean string by trimming whitespace"""
+    if value is None:
+        return None
+    return value.strip()
+
+
+def _clean_url(value: str | None) -> str | None:
+    """Clean URL for OpenAI-compatible services"""
+    if value is None:
+        return None
+    cleaned = value.strip().rstrip("/")
+    # Remove /chat/completions suffix for OpenAI-compatible APIs
+    cleaned = re.sub(r"/chat/completions/?$", "", cleaned)
+    return cleaned.rstrip("/")
+
+
+def _normalize_zhipu_model(value: str | None) -> str | None:
+    if value is None:
+        return None
+    model = value.strip()
+    normalized = model.lower().replace("_", "-")
+    aliases = {
+        "glm5.1": "glm-5.1",
+        "glm51": "glm-5.1",
+        "glm5-turbo": "glm-5-turbo",
+        "glm47": "glm-4.7",
+        "glm47-flash": "glm-4.7-flash",
+        "glm47-flashx": "glm-4.7-flashx",
+        "glm-4-flash": "glm-4.7-flash",
+    }
+    return aliases.get(normalized, normalized)
+
+
+class TranslateEngineSettingError(Exception):
+    """Translate engine setting error"""
+
+    def __init__(self, message: str):
+        self.message = message
+        super().__init__(self.message)
+
+
+## Please add the translator configuration class below this location.
+
+# Please note that all translator configurations must be of string type,
+# otherwise the GUI will not function properly!
+#
+# You should implement validation of the translator configuration in validate_settings.
+# And complete type conversion (if any) in the corresponding implementation of the translator.
+
+
+class OpenAISettings(BaseModel):
+    """OpenAI API settings"""
+
+    translate_engine_type: Literal["OpenAI"] = Field(default="OpenAI")
+    support_llm: Literal["yes", "no"] = Field(
+        default="yes", description="Whether the translator supports LLM"
+    )
+
+    openai_model: str = Field(default="gpt-4o-mini", description="OpenAI model to use")
+    openai_base_url: str | None = Field(
+        default=None, description="Base URL for OpenAI API"
+    )
+    openai_api_key: str | None = Field(
+        default=None, description="API key for OpenAI service"
+    )
+    openai_temperature: str | None = Field(
+        default=None, description="Temperature for OpenAI service"
+    )
+    openai_reasoning_effort: str | None = Field(
+        default=None,
+        description="Reasoning effort for OpenAI service (minimal/low/medium/high)",
+    )
+    openai_timeout_seconds: str | None = Field(
+        default="90",
+        description="Request timeout for OpenAI-compatible service in seconds",
+    )
+    openai_max_tokens: str | None = Field(
+        default=None,
+        description="Max completion tokens for OpenAI-compatible service",
+    )
+    openai_response_format: str | None = Field(
+        default=None,
+        description="Response format type for OpenAI-compatible service (text/json_object)",
+    )
+    openai_thinking_type: str | None = Field(
+        default=None,
+        description="Thinking mode for OpenAI-compatible service (enabled/disabled)",
+    )
+    openai_send_thinking: bool | None = Field(
+        default=None,
+        description="Send thinking param to OpenAI-compatible service",
+    )
+
+    # This parameter contains a spelling error, but it will not be corrected for compatibility reasons.
+    # For details, see: https://github.com/PDFMathTranslate/PDFMathTranslate-next/issues/175#issuecomment-3213568681
+    openai_send_temprature: bool | None = Field(
+        default=None, description="Send temprature to OpenAI service"
+    )
+    openai_send_reasoning_effort: bool | None = Field(
+        default=None, description="Send reasoning effort to OpenAI service"
+    )
+
+    def validate_settings(self) -> None:
+        if not self.openai_api_key:
+            raise ValueError("OpenAI API key is required")
+        self.openai_api_key = _clean_string(self.openai_api_key)
+        self.openai_base_url = _clean_url(self.openai_base_url)
+        self.openai_model = _clean_string(self.openai_model)
+        self.openai_temperature = _clean_string(self.openai_temperature)
+        self.openai_reasoning_effort = _clean_string(self.openai_reasoning_effort)
+        self.openai_timeout_seconds = _clean_string(self.openai_timeout_seconds)
+        self.openai_max_tokens = _clean_string(self.openai_max_tokens)
+        self.openai_response_format = _clean_string(self.openai_response_format)
+        self.openai_thinking_type = _clean_string(self.openai_thinking_type)
+        if self.openai_timeout_seconds:
+            try:
+                timeout = float(self.openai_timeout_seconds)
+            except ValueError as e:
+                raise ValueError("OpenAI timeout must be a number") from e
+            if timeout < 0:
+                raise ValueError("OpenAI timeout must be >= 0")
+        if self.openai_max_tokens:
+            try:
+                max_tokens = int(self.openai_max_tokens)
+            except ValueError as e:
+                raise ValueError("OpenAI max tokens must be an integer") from e
+            if max_tokens <= 0:
+                raise ValueError("OpenAI max tokens must be greater than 0")
+        if self.openai_response_format:
+            allowed_response_formats = {"text", "json_object"}
+            if self.openai_response_format not in allowed_response_formats:
+                raise ValueError(
+                    "OpenAI response format must be one of: text, json_object"
+                )
+        if self.openai_send_thinking:
+            if not self.openai_thinking_type:
+                raise ValueError("Thinking type is required when send thinking is enabled")
+            allowed_thinking_types = {"enabled", "disabled"}
+            if self.openai_thinking_type not in allowed_thinking_types:
+                raise ValueError("Thinking type must be enabled or disabled")
+        if self.openai_send_temprature:
+            if not self.openai_temperature:
+                raise ValueError(
+                    "Temperature is required when send temperature is enabled"
+                )
+            try:
+                float(self.openai_temperature)
+            except ValueError as e:
+                raise ValueError("Temperature must be a float") from e
+        if self.openai_send_reasoning_effort and not self.openai_reasoning_effort:
+            raise ValueError(
+                "Reasoning effort is required when send reasoning effort is enabled"
+            )
+
+
+GUI_PASSWORD_FIELDS.append("openai_api_key")
+GUI_SENSITIVE_FIELDS.append("openai_base_url")
+
+
+class BingSettings(BaseModel):
+    """Bing Translation settings"""
+
+    translate_engine_type: Literal["Bing"] = Field(default="Bing")
+
+    def validate_settings(self) -> None:
+        pass
+
+
+class GoogleSettings(BaseModel):
+    """Google Translation settings"""
+
+    translate_engine_type: Literal["Google"] = Field(default="Google")
+
+    def validate_settings(self) -> None:
+        pass
+
+
+class DeepLSettings(BaseModel):
+    """Bing Translation settings"""
+
+    translate_engine_type: Literal["DeepL"] = Field(default="DeepL")
+    deepl_auth_key: str | None = Field(default=None, description="DeepL auth key")
+
+    def validate_settings(self) -> None:
+        if not self.deepl_auth_key:
+            raise ValueError("DeepL Auth key is required")
+        self.deepl_auth_key = _clean_string(self.deepl_auth_key)
+
+
+GUI_PASSWORD_FIELDS.append("deepl_auth_key")
+
+# for openai compatibility translator
+# You only need to add the corresponding configuration class
+# and return the OpenAISettings instance using the transform method.
+
+
+class DeepSeekSettings(BaseModel):
+    """DeepSeek settings"""
+
+    translate_engine_type: Literal["DeepSeek"] = Field(default="DeepSeek")
+    support_llm: Literal["yes", "no"] = Field(
+        default="yes", description="Whether the translator supports LLM"
+    )
+    deepseek_model: str = Field(
+        default="deepseek-v4-flash", description="DeepSeek model to use"
+    )
+    deepseek_base_url: str | None = Field(
+        default="https://api.deepseek.com", description="DeepSeek OpenAI-compatible base URL"
+    )
+    deepseek_api_key: str | None = Field(
+        default=None, description="API key for DeepSeek service"
+    )
+    deepseek_timeout_seconds: str | None = Field(
+        default="300", description="Request timeout for DeepSeek service in seconds"
+    )
+    deepseek_thinking_type: str | None = Field(
+        default="disabled", description="DeepSeek thinking mode (enabled/disabled)"
+    )
+    deepseek_send_thinking: bool | None = Field(
+        default=True, description="Send DeepSeek thinking param"
+    )
+    deepseek_reasoning_effort: str | None = Field(
+        default=None, description="DeepSeek reasoning effort (high/max)"
+    )
+    deepseek_send_reasoning_effort: bool | None = Field(
+        default=False, description="Send DeepSeek reasoning effort param"
+    )
+    deepseek_max_tokens: str | None = Field(
+        default=None, description="Max completion tokens for DeepSeek service"
+    )
+
+    def validate_settings(self) -> None:
+        if not self.deepseek_api_key:
+            raise ValueError("DeepSeek API key is required")
+        self.deepseek_api_key = _clean_string(self.deepseek_api_key)
+        self.deepseek_base_url = _clean_url(self.deepseek_base_url)
+        self.deepseek_model = _clean_string(self.deepseek_model)
+        self.deepseek_timeout_seconds = _clean_string(self.deepseek_timeout_seconds)
+        self.deepseek_thinking_type = _clean_string(self.deepseek_thinking_type)
+        self.deepseek_reasoning_effort = _clean_string(self.deepseek_reasoning_effort)
+        self.deepseek_max_tokens = _clean_string(self.deepseek_max_tokens)
+        if self.deepseek_timeout_seconds:
+            try:
+                timeout = float(self.deepseek_timeout_seconds)
+            except ValueError as e:
+                raise ValueError("DeepSeek timeout must be a number") from e
+            if timeout < 0:
+                raise ValueError("DeepSeek timeout must be >= 0")
+        if self.deepseek_send_thinking:
+            if not self.deepseek_thinking_type:
+                raise ValueError("DeepSeek thinking type is required")
+            if self.deepseek_thinking_type not in {"enabled", "disabled"}:
+                raise ValueError("DeepSeek thinking type must be enabled or disabled")
+        if self.deepseek_send_reasoning_effort:
+            if not self.deepseek_reasoning_effort:
+                raise ValueError("DeepSeek reasoning effort is required")
+            if self.deepseek_reasoning_effort not in {"high", "max"}:
+                raise ValueError("DeepSeek reasoning effort must be high or max")
+        if self.deepseek_max_tokens:
+            try:
+                max_tokens = int(self.deepseek_max_tokens)
+            except ValueError as e:
+                raise ValueError("DeepSeek max tokens must be an integer") from e
+            if max_tokens <= 0:
+                raise ValueError("DeepSeek max tokens must be greater than 0")
+
+    def transform(self) -> OpenAISettings:
+        return OpenAISettings(
+            openai_model=self.deepseek_model,
+            openai_api_key=self.deepseek_api_key,
+            openai_base_url=self.deepseek_base_url,
+            openai_timeout_seconds=self.deepseek_timeout_seconds,
+            openai_max_tokens=self.deepseek_max_tokens,
+            openai_thinking_type=self.deepseek_thinking_type,
+            openai_send_thinking=self.deepseek_send_thinking,
+            openai_reasoning_effort=self.deepseek_reasoning_effort,
+            openai_send_reasoning_effort=self.deepseek_send_reasoning_effort,
+        )
+
+
+GUI_PASSWORD_FIELDS.append("deepseek_api_key")
+GUI_SENSITIVE_FIELDS.append("deepseek_base_url")
+
+
+class OllamaSettings(BaseModel):
+    """Ollama API settings"""
+
+    translate_engine_type: Literal["Ollama"] = Field(default="Ollama")
+    support_llm: Literal["yes", "no"] = Field(
+        default="yes", description="Whether the translator supports LLM"
+    )
+
+    ollama_model: str = Field(default="gemma2", description="Ollama model to use")
+    ollama_host: str | None = Field(
+        default="http://localhost:11434", description="Ollama host"
+    )
+    num_predict: int | None = Field(
+        default=2000, description="The max number of token to predict."
+    )
+
+    def validate_settings(self) -> None:
+        if not self.ollama_host:
+            raise ValueError("Ollama host is required")
+        self.ollama_host = _clean_string(self.ollama_host)
+        self.ollama_model = _clean_string(self.ollama_model)
+
+
+GUI_SENSITIVE_FIELDS.append("ollama_host")
+
+
+class XinferenceSettings(BaseModel):
+    """Xinference API settings"""
+
+    translate_engine_type: Literal["Xinference"] = Field(default="Xinference")
+    support_llm: Literal["yes", "no"] = Field(
+        default="yes", description="Whether the translator supports LLM"
+    )
+
+    xinference_model: str = Field(
+        default="gemma-2-it", description="Xinference model to use"
+    )
+    xinference_host: str | None = Field(default=None, description="Xinference host")
+
+    def validate_settings(self) -> None:
+        if not self.xinference_host:
+            raise ValueError("Xinference host is required")
+        self.xinference_host = _clean_string(self.xinference_host)
+        self.xinference_model = _clean_string(self.xinference_model)
+
+
+GUI_SENSITIVE_FIELDS.append("xinference_host")
+
+
+class AzureOpenAISettings(BaseModel):
+    """AzureOpenAI API settings"""
+
+    translate_engine_type: Literal["AzureOpenAI"] = Field(default="AzureOpenAI")
+    support_llm: Literal["yes", "no"] = Field(
+        default="yes", description="Whether the translator supports LLM"
+    )
+
+    azure_openai_model: str = Field(
+        default="gpt-4o-mini", description="AzureOpenAI model to use"
+    )
+    azure_openai_base_url: str | None = Field(
+        default=None, description="Base URL for AzureOpenAI API"
+    )
+    azure_openai_api_key: str | None = Field(
+        default=None, description="API key for AzureOpenAI service"
+    )
+    azure_openai_api_version: str = Field(
+        default="2024-06-01", description="API version for AzureOpenAI service"
+    )
+
+    def validate_settings(self) -> None:
+        if not self.azure_openai_api_key:
+            raise ValueError("AzureOpenAI API key is required")
+        self.azure_openai_api_key = _clean_string(self.azure_openai_api_key)
+        self.azure_openai_base_url = _clean_string(self.azure_openai_base_url)
+        self.azure_openai_model = _clean_string(self.azure_openai_model)
+        self.azure_openai_api_version = _clean_string(self.azure_openai_api_version)
+
+
+GUI_PASSWORD_FIELDS.append("azure_openai_api_key")
+GUI_SENSITIVE_FIELDS.append("azure_openai_base_url")
+
+
+class ModelScopeSettings(BaseModel):
+    """ModelScope API settings"""
+
+    translate_engine_type: Literal["ModelScope"] = Field(default="ModelScope")
+    support_llm: Literal["yes", "no"] = Field(
+        default="yes", description="Whether the translator supports LLM"
+    )
+
+    modelscope_model: str = Field(
+        default="Qwen/Qwen2.5-32B-Instruct", description="ModelScope model to use"
+    )
+    modelscope_api_key: str | None = Field(
+        default=None, description="API key for ModelScope service"
+    )
+
+    def validate_settings(self) -> None:
+        if not self.modelscope_api_key:
+            raise ValueError("ModelScope API key is required")
+        self.modelscope_api_key = _clean_string(self.modelscope_api_key)
+        self.modelscope_model = _clean_string(self.modelscope_model)
+
+    def transform(self) -> OpenAISettings:
+        return OpenAISettings(
+            openai_model=self.modelscope_model,
+            openai_api_key=self.modelscope_api_key,
+            openai_base_url="https://api-inference.modelscope.cn/v1",
+        )
+
+
+GUI_PASSWORD_FIELDS.append("modelscope_api_key")
+
+
+class ZhipuSettings(BaseModel):
+    """Zhipu API settings"""
+
+    translate_engine_type: Literal["Zhipu"] = Field(default="Zhipu")
+    support_llm: Literal["yes", "no"] = Field(
+        default="yes", description="Whether the translator supports LLM"
+    )
+
+    zhipu_model: str = Field(
+        default="GLM-4.7-Flash", description="Zhipu model to use"
+    )
+    zhipu_base_url: str | None = Field(
+        default="https://open.bigmodel.cn/api/paas/v4/chat/completions",
+        description="Zhipu API URL (full chat/completions URL is supported)",
+    )
+    zhipu_api_key: str | None = Field(
+        default=None, description="API key for Zhipu service"
+    )
+    zhipu_timeout_seconds: str | None = Field(
+        default="90", description="Request timeout for Zhipu service in seconds"
+    )
+
+    def model_post_init(self, __context: typing.Any) -> None:
+        self.zhipu_model = _normalize_zhipu_model(self.zhipu_model)
+
+    def validate_settings(self) -> None:
+        if not self.zhipu_api_key:
+            raise ValueError("Zhipu API key is required")
+        self.zhipu_api_key = _clean_string(self.zhipu_api_key)
+        self.zhipu_model = _normalize_zhipu_model(self.zhipu_model)
+        self.zhipu_base_url = _clean_url(self.zhipu_base_url)
+        self.zhipu_timeout_seconds = _clean_string(self.zhipu_timeout_seconds)
+        if self.zhipu_timeout_seconds:
+            try:
+                timeout = float(self.zhipu_timeout_seconds)
+            except ValueError as e:
+                raise ValueError("Zhipu timeout must be a number") from e
+            if timeout < 0:
+                raise ValueError("Zhipu timeout must be >= 0")
+
+    def transform(self) -> OpenAISettings:
+        return OpenAISettings(
+            openai_model=self.zhipu_model,
+            openai_api_key=self.zhipu_api_key,
+            openai_base_url=self.zhipu_base_url,
+            openai_timeout_seconds=self.zhipu_timeout_seconds,
+        )
+
+
+GUI_PASSWORD_FIELDS.append("zhipu_api_key")
+GUI_SENSITIVE_FIELDS.append("zhipu_base_url")
+
+
+class SiliconFlowSettings(BaseModel):
+    """SiliconFlow API settings"""
+
+    translate_engine_type: Literal["SiliconFlow"] = Field(default="SiliconFlow")
+    support_llm: Literal["yes", "no"] = Field(
+        default="yes", description="Whether the translator supports LLM"
+    )
+
+    siliconflow_base_url: str | None = Field(
+        default="https://api.siliconflow.cn/v1",
+        description="Base URL for SiliconFlow API",
+    )
+    siliconflow_model: str = Field(
+        default="Qwen/Qwen2.5-7B-Instruct", description="SiliconFlow model to use"
+    )
+    siliconflow_api_key: str | None = Field(
+        default=None, description="API key for SiliconFlow service"
+    )
+    siliconflow_enable_thinking: bool | None = Field(
+        default=False, description="Enable thinking for SiliconFlow service"
+    )
+    siliconflow_send_enable_thinking_param: bool | None = Field(
+        default=False,
+        description="Send enable thinking param to SiliconFlow service",
+    )
+
+    def validate_settings(self) -> None:
+        if not self.siliconflow_api_key:
+            raise ValueError("SiliconFlow API key is required")
+        self.siliconflow_api_key = _clean_string(self.siliconflow_api_key)
+        self.siliconflow_base_url = _clean_string(self.siliconflow_base_url)
+        self.siliconflow_model = _clean_string(self.siliconflow_model)
+
+
+GUI_PASSWORD_FIELDS.append("siliconflow_api_key")
+GUI_SENSITIVE_FIELDS.append("siliconflow_base_url")
+
+
+class SiliconFlowFreeSettings(BaseModel):
+    """SiliconFlow Free API settings"""
+
+    translate_engine_type: Literal["SiliconFlowFree"] = Field(default="SiliconFlowFree")
+    support_llm: Literal["yes", "no"] = Field(
+        default="yes", description="Whether the translator supports LLM"
+    )
+
+    def validate_settings(self) -> None:
+        pass
+
+
+class TencentSettings(BaseModel):
+    """Tencent Mechine Translation settings"""
+
+    translate_engine_type: Literal["TencentMechineTranslation"] = Field(
+        default="TencentMechineTranslation"
+    )
+    tencentcloud_secret_id: str | None = Field(
+        default=None, description="Tencent Mechine Translation secret ID"
+    )
+    tencentcloud_secret_key: str | None = Field(
+        default=None, description="Tencent Mechine Translation secret Key"
+    )
+
+    def validate_settings(self) -> None:
+        if not self.tencentcloud_secret_id:
+            raise ValueError("Tencent Mechine Translation ID is required")
+        if not self.tencentcloud_secret_key:
+            raise ValueError("Tencent Mechine Translation Key is required")
+        self.tencentcloud_secret_id = _clean_string(self.tencentcloud_secret_id)
+        self.tencentcloud_secret_key = _clean_string(self.tencentcloud_secret_key)
+
+
+GUI_PASSWORD_FIELDS.append("tencentcloud_secret_id")
+GUI_PASSWORD_FIELDS.append("tencentcloud_secret_key")
+
+
+class GeminiSettings(BaseModel):
+    """Gemini API settings"""
+
+    translate_engine_type: Literal["Gemini"] = Field(default="Gemini")
+    support_llm: Literal["yes", "no"] = Field(
+        default="yes", description="Whether the translator supports LLM"
+    )
+
+    gemini_model: str = Field(
+        default="gemini-1.5-flash", description="Gemini model to use"
+    )
+    gemini_api_key: str | None = Field(
+        default=None, description="API key for Gemini service"
+    )
+
+    def validate_settings(self) -> None:
+        if not self.gemini_api_key:
+            raise ValueError("Gemini API key is required")
+        self.gemini_api_key = _clean_string(self.gemini_api_key)
+        self.gemini_model = _clean_string(self.gemini_model)
+
+    def transform(self) -> OpenAISettings:
+        return OpenAISettings(
+            openai_model=self.gemini_model,
+            openai_api_key=self.gemini_api_key,
+            openai_base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+        )
+
+
+GUI_PASSWORD_FIELDS.append("gemini_api_key")
+
+
+class AzureSettings(BaseModel):
+    """Azure Translation settings"""
+
+    translate_engine_type: Literal["Azure"] = Field(default="Azure")
+    azure_endpoint: str | None = Field(
+        default="https://api.translator.azure.cn", description="Azure endpoint"
+    )
+    azure_api_key: str | None = Field(default=None, description="Azure API Key")
+
+    def validate_settings(self) -> None:
+        if not self.azure_api_key:
+            raise ValueError("Azure API key is required")
+        self.azure_api_key = _clean_string(self.azure_api_key)
+        self.azure_endpoint = _clean_string(self.azure_endpoint)
+
+
+GUI_PASSWORD_FIELDS.append("azure_api_key")
+GUI_SENSITIVE_FIELDS.append("azure_endpoint")
+
+
+class AnythingLLMSettings(BaseModel):
+    """AnythingLLM settings"""
+
+    translate_engine_type: Literal["AnythingLLM"] = Field(default="AnythingLLM")
+    anythingllm_url: str | None = Field(default=None, description="AnythingLLM url")
+    anythingllm_apikey: str | None = Field(
+        default=None, description="AnythingLLM API Key"
+    )
+
+    def validate_settings(self) -> None:
+        if not self.anythingllm_apikey:
+            raise ValueError("AnythingLLM API Key is required")
+        self.anythingllm_apikey = _clean_string(self.anythingllm_apikey)
+        self.anythingllm_url = _clean_string(self.anythingllm_url)
+
+
+GUI_PASSWORD_FIELDS.append("anythingllm_apikey")
+GUI_SENSITIVE_FIELDS.append("anythingllm_url")
+
+
+class DifySettings(BaseModel):
+    """Dify settings"""
+
+    translate_engine_type: Literal["Dify"] = Field(default="Dify")
+    dify_url: str | None = Field(default=None, description="Dify url")
+    dify_apikey: str | None = Field(default=None, description="Dify API Key")
+
+    def validate_settings(self) -> None:
+        if not self.dify_apikey:
+            raise ValueError("Dify API Key is required")
+        self.dify_apikey = _clean_string(self.dify_apikey)
+        self.dify_url = _clean_string(self.dify_url)
+
+
+GUI_PASSWORD_FIELDS.append("dify_apikey")
+GUI_SENSITIVE_FIELDS.append("dify_url")
+
+
+class GrokSettings(BaseModel):
+    """Grok API settings"""
+
+    translate_engine_type: Literal["Grok"] = Field(default="Grok")
+    support_llm: Literal["yes", "no"] = Field(
+        default="yes", description="Whether the translator supports LLM"
+    )
+
+    grok_model: str = Field(default="grok-2-1212", description="Grok model to use")
+    grok_api_key: str | None = Field(
+        default=None, description="API key for Grok service"
+    )
+
+    def validate_settings(self) -> None:
+        if not self.grok_api_key:
+            raise ValueError("Grok API key is required")
+        self.grok_api_key = _clean_string(self.grok_api_key)
+        self.grok_model = _clean_string(self.grok_model)
+
+    def transform(self) -> OpenAISettings:
+        return OpenAISettings(
+            openai_model=self.grok_model,
+            openai_api_key=self.grok_api_key,
+            openai_base_url="https://api.x.ai/v1",
+        )
+
+
+GUI_PASSWORD_FIELDS.append("grok_api_key")
+
+
+class GroqSettings(BaseModel):
+    """Groq API settings"""
+
+    translate_engine_type: Literal["Groq"] = Field(default="Groq")
+    support_llm: Literal["yes", "no"] = Field(
+        default="yes", description="Whether the translator supports LLM"
+    )
+
+    groq_model: str = Field(
+        default="llama-3-3-70b-versatile", description="Groq model to use"
+    )
+    groq_api_key: str | None = Field(
+        default=None, description="API key for Groq service"
+    )
+
+    def validate_settings(self) -> None:
+        if not self.groq_api_key:
+            raise ValueError("Groq API key is required")
+        self.groq_api_key = _clean_string(self.groq_api_key)
+        self.groq_model = _clean_string(self.groq_model)
+
+    def transform(self) -> OpenAISettings:
+        return OpenAISettings(
+            openai_model=self.groq_model,
+            openai_api_key=self.groq_api_key,
+            openai_base_url="https://api.groq.com/openai/v1",
+        )
+
+
+GUI_PASSWORD_FIELDS.append("groq_api_key")
+
+
+class QwenMtSettings(BaseModel):
+    """QwenMt API settings"""
+
+    translate_engine_type: Literal["QwenMt"] = Field(default="QwenMt")
+    support_llm: Literal["yes", "no"] = Field(
+        default="yes", description="Whether the translator supports LLM"
+    )
+
+    qwenmt_model: str = Field(
+        default="qwen-mt-turbo", description="QwenMt model to use"
+    )
+    qwenmt_base_url: str | None = Field(
+        default="https://dashscope.aliyuncs.com/compatible-mode/v1",
+        description="Base URL for QwenMt API",
+    )
+    qwenmt_api_key: str | None = Field(
+        default=None, description="API key for QwenMt service"
+    )
+    ali_domains: str | None = Field(
+        default="This sentence is extracted from a scientific paper. When translating, please pay close attention to the use of specialized troubleshooting terminologies and adhere to scientific sentence structures to maintain the technical rigor and precision of the original text.",
+        description="the target domain to guide translation style for QwenMt service",
+    )
+
+    def validate_settings(self) -> None:
+        if not self.qwenmt_api_key:
+            raise ValueError("QwenMt API key is required")
+        self.qwenmt_api_key = _clean_string(self.qwenmt_api_key)
+        self.qwenmt_base_url = _clean_string(self.qwenmt_base_url)
+        self.qwenmt_model = _clean_string(self.qwenmt_model)
+        self.ali_domains = _clean_string(self.ali_domains)
+
+
+GUI_PASSWORD_FIELDS.append("qwenmt_api_key")
+GUI_SENSITIVE_FIELDS.append("qwenmt_base_url")
+
+
+class OpenAICompatibleSettings(BaseModel):
+    """OpenAICompatible settings"""
+
+    translate_engine_type: Literal["OpenAICompatible"] = Field(
+        default="OpenAICompatible"
+    )
+    support_llm: Literal["yes", "no"] = Field(
+        default="yes", description="Whether the translator supports LLM"
+    )
+
+    openai_compatible_model: str = Field(
+        default="gpt-4o-mini", description="OpenAI Compatible model to use"
+    )
+    openai_compatible_base_url: str | None = Field(
+        default=None, description="Base URL for OpenAI Compatible service"
+    )
+    openai_compatible_api_key: str | None = Field(
+        default=None, description="API key for OpenAI Compatible service"
+    )
+    openai_compatible_temperature: str | None = Field(
+        default=None, description="Temperature for OpenAI Compatible service"
+    )
+    openai_compatible_reasoning_effort: str | None = Field(
+        default=None,
+        description="Reasoning effort for OpenAI Compatible service (minimal/low/medium/high)",
+    )
+    openai_compatible_timeout_seconds: str | None = Field(
+        default="90",
+        description="Request timeout for OpenAI Compatible service in seconds",
+    )
+    openai_compatible_max_tokens: str | None = Field(
+        default=None,
+        description="Max completion tokens for OpenAI Compatible service",
+    )
+    openai_compatible_response_format: str | None = Field(
+        default=None,
+        description="Response format type for OpenAI Compatible service (text/json_object)",
+    )
+    openai_compatible_thinking_type: str | None = Field(
+        default=None,
+        description="Thinking mode for OpenAI Compatible service (enabled/disabled)",
+    )
+    openai_compatible_send_temperature: bool | None = Field(
+        default=None, description="Send temperature to OpenAI Compatible service"
+    )
+    openai_compatible_send_reasoning_effort: bool | None = Field(
+        default=None, description="Send reasoning effort to OpenAI Compatible service"
+    )
+    openai_compatible_send_thinking: bool | None = Field(
+        default=None, description="Send thinking param to OpenAI Compatible service"
+    )
+
+    def validate_settings(self) -> None:
+        if not self.openai_compatible_api_key:
+            raise ValueError("OpenAI Compatible API key is required")
+        if not self.openai_compatible_base_url:
+            raise ValueError("OpenAI Compatible base URL is required")
+        if not self.openai_compatible_model:
+            raise ValueError("OpenAI Compatible model is required")
+        self.openai_compatible_api_key = _clean_string(self.openai_compatible_api_key)
+        self.openai_compatible_base_url = _clean_url(self.openai_compatible_base_url)
+        self.openai_compatible_model = _clean_string(self.openai_compatible_model)
+        self.openai_compatible_temperature = _clean_string(
+            self.openai_compatible_temperature
+        )
+        self.openai_compatible_reasoning_effort = _clean_string(
+            self.openai_compatible_reasoning_effort
+        )
+        self.openai_compatible_timeout_seconds = _clean_string(
+            self.openai_compatible_timeout_seconds
+        )
+        self.openai_compatible_max_tokens = _clean_string(
+            self.openai_compatible_max_tokens
+        )
+        self.openai_compatible_response_format = _clean_string(
+            self.openai_compatible_response_format
+        )
+        self.openai_compatible_thinking_type = _clean_string(
+            self.openai_compatible_thinking_type
+        )
+        if self.openai_compatible_timeout_seconds:
+            try:
+                timeout = float(self.openai_compatible_timeout_seconds)
+            except ValueError as e:
+                raise ValueError("OpenAI Compatible timeout must be a number") from e
+            if timeout < 0:
+                raise ValueError("OpenAI Compatible timeout must be >= 0")
+        if self.openai_compatible_max_tokens:
+            try:
+                max_tokens = int(self.openai_compatible_max_tokens)
+            except ValueError as e:
+                raise ValueError("OpenAI Compatible max tokens must be an integer") from e
+            if max_tokens <= 0:
+                raise ValueError("OpenAI Compatible max tokens must be greater than 0")
+        if self.openai_compatible_response_format:
+            if self.openai_compatible_response_format not in {"text", "json_object"}:
+                raise ValueError(
+                    "OpenAI Compatible response format must be one of: text, json_object"
+                )
+        if self.openai_compatible_send_thinking:
+            if not self.openai_compatible_thinking_type:
+                raise ValueError(
+                    "Thinking type is required when send thinking is enabled"
+                )
+            if self.openai_compatible_thinking_type not in {"enabled", "disabled"}:
+                raise ValueError("Thinking type must be enabled or disabled")
+        if self.openai_compatible_send_temperature:
+            if not self.openai_compatible_temperature:
+                raise ValueError(
+                    "Temperature is required when send temperature is enabled"
+                )
+            try:
+                float(self.openai_compatible_temperature)
+            except ValueError as e:
+                raise ValueError("Temperature must be a float") from e
+        if (
+            self.openai_compatible_send_reasoning_effort
+            and not self.openai_compatible_reasoning_effort
+        ):
+            raise ValueError(
+                "Reasoning effort is required when send reasoning effort is enabled"
+            )
+
+    def transform(self) -> OpenAISettings:
+        return OpenAISettings(
+            openai_model=self.openai_compatible_model,
+            openai_api_key=self.openai_compatible_api_key,
+            openai_base_url=self.openai_compatible_base_url,
+            openai_temperature=self.openai_compatible_temperature,
+            openai_reasoning_effort=self.openai_compatible_reasoning_effort,
+            openai_timeout_seconds=self.openai_compatible_timeout_seconds,
+            openai_max_tokens=self.openai_compatible_max_tokens,
+            openai_response_format=self.openai_compatible_response_format,
+            openai_thinking_type=self.openai_compatible_thinking_type,
+            openai_send_temprature=self.openai_compatible_send_temperature,
+            openai_send_reasoning_effort=self.openai_compatible_send_reasoning_effort,
+            openai_send_thinking=self.openai_compatible_send_thinking,
+        )
+
+
+GUI_PASSWORD_FIELDS.append("openai_compatible_api_key")
+GUI_SENSITIVE_FIELDS.append("openai_compatible_base_url")
+
+
+## Please add the translator configuration class above this location.
+
+# 所有翻译引擎
+TRANSLATION_ENGINE_SETTING_TYPE: TypeAlias = (
+    SiliconFlowFreeSettings
+    | OpenAISettings
+    | GoogleSettings
+    | BingSettings
+    | DeepLSettings
+    | DeepSeekSettings
+    | OllamaSettings
+    | XinferenceSettings
+    | AzureOpenAISettings
+    | ModelScopeSettings
+    | ZhipuSettings
+    | SiliconFlowSettings
+    | TencentSettings
+    | GeminiSettings
+    | AzureSettings
+    | AnythingLLMSettings
+    | DifySettings
+    | GrokSettings
+    | GroqSettings
+    | QwenMtSettings
+    | OpenAICompatibleSettings
+)
+
+# 不支持的翻译引擎
+NOT_SUPPORTED_TRANSLATION_ENGINE_SETTING_TYPE: TypeAlias = NoneType
+
+# 默认翻译引擎
+_DEFAULT_TRANSLATION_ENGINE = SiliconFlowFreeSettings
+assert len(_DEFAULT_TRANSLATION_ENGINE.model_fields) == 2, (
+    "Default translation engine cannot have detail settings"
+)
+
+# The following is magic code,
+# if you need to modify it,
+# please contact the maintainer!
+
+GUI_SENSITIVE_FIELDS.extend(GUI_PASSWORD_FIELDS)
+
+
+@dataclass
+class TranslationEngineMetadata:
+    translate_engine_type: str
+    cli_flag_name: str
+    cli_detail_field_name: str | None
+    setting_model_type: type[BaseModel]
+    support_llm: bool
+
+    def __init__(
+        self,
+        setting_model_type: type[BaseModel],
+    ) -> None:
+        self.translate_engine_type = setting_model_type.model_fields[
+            "translate_engine_type"
+        ].default
+        self.cli_flag_name = self.translate_engine_type.lower()
+        self.cli_detail_field_name = self.cli_flag_name + "_detail"
+        self.setting_model_type = setting_model_type
+        if len(setting_model_type.model_fields) == 1:
+            self.cli_detail_field_name = None
+        self.support_llm = (
+            (sl := setting_model_type.model_fields.get("support_llm", None))
+            and sl.default == "yes"
+        ) or False
+
+
+args = typing.get_args(TRANSLATION_ENGINE_SETTING_TYPE)
+
+TRANSLATION_ENGINE_METADATA = [
+    TranslationEngineMetadata(
+        setting_model_type=arg,
+    )
+    for arg in args
+]
+
+TRANSLATION_ENGINE_METADATA_MAP = {
+    metadata.translate_engine_type: metadata for metadata in TRANSLATION_ENGINE_METADATA
+}
+
+
+# auto check duplicate translation engine metadata
+assert len(TRANSLATION_ENGINE_METADATA_MAP) == len(TRANSLATION_ENGINE_METADATA), (
+    "Duplicate translation engine metadata"
+)
+
+# auto check duplicate cli flag name and cli detail field name
+dedup_set = set()
+for metadata in TRANSLATION_ENGINE_METADATA:
+    if metadata.cli_flag_name in dedup_set:
+        raise ValueError(f"Duplicate cli flag name: {metadata.cli_flag_name}")
+    dedup_set.add(metadata.cli_flag_name)
+    if metadata.cli_detail_field_name and metadata.cli_detail_field_name in dedup_set:
+        raise ValueError(
+            f"Duplicate cli detail field name: {metadata.cli_detail_field_name}"
+        )
+    dedup_set.add(metadata.cli_detail_field_name)
+del dedup_set
+
+DEFAULT_TRANSLATION_ENGINE_METADATA = TRANSLATION_ENGINE_METADATA_MAP[
+    _DEFAULT_TRANSLATION_ENGINE.model_fields["translate_engine_type"].default
+]
+
+if __name__ == "__main__":
+    print(TRANSLATION_ENGINE_METADATA_MAP)

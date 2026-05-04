@@ -1,0 +1,17 @@
+[package]
+name = "pdf-translator-rust-desktop"
+version = "2.5.9"
+description = "PDF文件翻译工具 Rust desktop shell"
+authors = ["Always Pi AI Studio"]
+license = "AGPL-3.0"
+repository = "https://github.com/PDFMathTranslate/PDFMathTranslate-next"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+serde_json = "1"
+tauri = { version = "2", features = [] }
+zip = { version = "2", default-features = false, features = ["deflate"] }
+rfd = { version = "0.15", default-features = false, features = ["common-controls-v6"] }

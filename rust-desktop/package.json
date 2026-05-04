@@ -1,0 +1,14 @@
+{
+  "name": "pdf-translator-rust-desktop",
+  "version": "2.5.9",
+  "private": true,
+  "description": "Rust desktop shell for PDF文件翻译工具",
+  "scripts": {
+    "tauri": "tauri",
+    "build": "tauri build",
+    "dev": "tauri dev"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0"
+  }
+}
