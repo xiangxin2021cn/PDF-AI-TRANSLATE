@@ -51,7 +51,6 @@ dependencies = [
 [dependency-groups]
 dev = [
     "pre-commit",
-    "pytest",
     "build",
     "bumpver>=2024.1130",
     "ruff>=0.9.2",
@@ -160,6 +159,5 @@ max-complexity = 10 # 函数圈复杂度阈值
 
 [tool.ruff.lint.per-file-ignores]
 "pdf2zh_next/gui.py" = ["S104"] # 忽略命名规范
-"tests/*" = ["S101"]            # 在测试文件中允许 assert
 "**/__init__.py" = ["F401"]     # 允许未使用的导入
 "docs/*" = ["A001"]
