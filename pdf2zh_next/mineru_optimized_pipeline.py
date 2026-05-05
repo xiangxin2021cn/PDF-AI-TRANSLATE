@@ -49,6 +49,11 @@ from pdf2zh_next.translator import get_translator
 
 logger = logging.getLogger(__name__)
 
+LOCAL_EXTRACTION_PROGRESS_START = 0.30
+LOCAL_EXTRACTION_PROGRESS_END = 0.80
+LOCAL_EXTRACTION_HEARTBEAT_SECONDS = 15.0
+LOCAL_EXTRACTION_POLL_SECONDS = 1.0
+
 
 @dataclass
 class ParagraphBlock:
@@ -246,31 +251,135 @@ class MinerUOptimizedPipeline:
             page_results_by_num: dict[int, PageResult] = dict(cached_results)
 
             if missing_pages:
+                from .progress_tracker import ProgressEvent
+
                 progress_tracker.update_stage(
                     ProcessingStage.EXTRACTION,
-                    f"正在一次性识别本地 MinerU 文档结构，共 {len(missing_pages)} 页...",
+                    f"正在按页识别本地 MinerU 文档结构，共 {len(missing_pages)} 页...",
+                    {
+                        "total_pages": total_pages,
+                        "pending_pages": len(missing_pages),
+                        "cached_pages": len(cached_results),
+                        "timeout_seconds": self._mineru_timeout_seconds(),
+                    },
                 )
                 yield await self._get_next_event(progress_tracker)
 
-                extract_task = asyncio.create_task(
-                    self._run_mineru_call(
-                        self.mineru.extract_from_pdf,
-                        pdf_path,
-                        pages=missing_pages,
+                extraction_total = len(missing_pages)
+                for extraction_index, page_num in enumerate(missing_pages, start=1):
+                    page_started_at = time.monotonic()
+                    completed_before_page = extraction_index - 1
+                    progress_tracker.put_event(
+                        ProgressEvent(
+                            stage=ProcessingStage.EXTRACTION,
+                            progress=self._local_extraction_progress(
+                                completed_before_page, extraction_total
+                            ),
+                            message=(
+                                f"正在识别第 {extraction_index}/{extraction_total} 个待处理页面 "
+                                f"(PDF第 {page_num} 页)..."
+                            ),
+                            details={
+                                "page_num": page_num,
+                                "current_page": extraction_index,
+                                "total_pages": extraction_total,
+                                "cached_pages": len(cached_results),
+                                "completed_pages": completed_before_page,
+                                "timeout_seconds": self._mineru_timeout_seconds(),
+                                "status": "running",
+                            },
+                            page_num=page_num,
+                            total_pages=total_pages,
+                        )
                     )
-                )
-                while not extract_task.done():
                     yield await self._get_next_event(progress_tracker)
-                    await asyncio.sleep(0.2)
 
-                local_result = await extract_task
-                extracted_results = self._build_page_results_from_local_document(
-                    local_result,
-                    pdf_path,
-                )
-                for page_result in extracted_results:
-                    if page_result.page_num in missing_pages:
-                        page_results_by_num[page_result.page_num] = page_result
+                    extract_task = asyncio.create_task(
+                        self._run_mineru_call(
+                            self.mineru.extract_single_page,
+                            pdf_path,
+                            page_num,
+                        )
+                    )
+                    next_heartbeat_at = LOCAL_EXTRACTION_HEARTBEAT_SECONDS
+                    while not extract_task.done():
+                        elapsed = time.monotonic() - page_started_at
+                        if elapsed >= next_heartbeat_at:
+                            progress_tracker.put_event(
+                                ProgressEvent(
+                                    stage=ProcessingStage.EXTRACTION,
+                                    progress=self._local_extraction_progress(
+                                        completed_before_page, extraction_total
+                                    ),
+                                    message=(
+                                        f"本地 MinerU 仍在识别 PDF 第 {page_num} 页，"
+                                        f"已运行 {int(elapsed)} 秒..."
+                                    ),
+                                    details={
+                                        "page_num": page_num,
+                                        "current_page": extraction_index,
+                                        "total_pages": extraction_total,
+                                        "cached_pages": len(cached_results),
+                                        "completed_pages": completed_before_page,
+                                        "elapsed_seconds": round(elapsed, 1),
+                                        "timeout_seconds": self._mineru_timeout_seconds(),
+                                        "status": "running",
+                                    },
+                                    page_num=page_num,
+                                    total_pages=total_pages,
+                                )
+                            )
+                            next_heartbeat_at += LOCAL_EXTRACTION_HEARTBEAT_SECONDS
+                        yield await self._get_next_event(progress_tracker)
+                        await asyncio.sleep(LOCAL_EXTRACTION_POLL_SECONDS)
+
+                    try:
+                        page_structure = await extract_task
+                    except Exception as e:
+                        logger.error(
+                            "本地 MinerU 识别第 %s 页失败: %s",
+                            page_num,
+                            e,
+                            exc_info=True,
+                        )
+                        raise RuntimeError(
+                            f"本地 MinerU 识别第 {page_num} 页失败: {e}"
+                        ) from e
+
+                    page_result = self._build_page_result_from_local_page(
+                        page_structure,
+                        pdf_path,
+                        total_pages=total_pages,
+                    )
+                    page_results_by_num[page_num] = page_result
+                    await self._save_page_result(page_result)
+
+                    elapsed = time.monotonic() - page_started_at
+                    progress_tracker.put_event(
+                        ProgressEvent(
+                            stage=ProcessingStage.EXTRACTION,
+                            progress=self._local_extraction_progress(
+                                extraction_index, extraction_total
+                            ),
+                            message=(
+                                f"PDF 第 {page_num} 页识别完成 "
+                                f"({extraction_index}/{extraction_total})"
+                            ),
+                            details={
+                                "page_num": page_num,
+                                "current_page": extraction_index,
+                                "total_pages": extraction_total,
+                                "cached_pages": len(cached_results),
+                                "completed_pages": extraction_index,
+                                "elapsed_seconds": round(elapsed, 1),
+                                "blocks_found": len(page_result.original_blocks),
+                                "status": "completed",
+                            },
+                            page_num=page_num,
+                            total_pages=total_pages,
+                        )
+                    )
+                    yield await self._get_next_event(progress_tracker)
 
             all_results = [
                 page_results_by_num[page]
@@ -659,6 +768,49 @@ class MinerUOptimizedPipeline:
             sum(len(page.original_blocks) for page in page_results),
         )
         return page_results
+
+    def _build_page_result_from_local_page(
+        self,
+        page_structure: dict[str, Any],
+        pdf_path: Path,
+        total_pages: int,
+    ) -> PageResult:
+        page_num = 0
+        if isinstance(page_structure, dict):
+            try:
+                page_num = int(page_structure.get("page_num") or 0)
+            except (TypeError, ValueError):
+                page_num = 0
+
+        local_result = {
+            "source": str(pdf_path),
+            "total_pages": total_pages,
+            "pages": [page_structure if isinstance(page_structure, dict) else {}],
+        }
+        page_results = self._build_page_results_from_local_document(
+            local_result,
+            pdf_path,
+        )
+        if page_results:
+            return page_results[0]
+
+        return PageResult(
+            page_num=page_num,
+            original_blocks=[],
+            translated_blocks=[],
+            raw_structure={
+                "page_num": page_num,
+                "source": str(pdf_path),
+                "blocks": [],
+                "mineru_local": {
+                    "backend": self.mineru_backend,
+                    "translation_flow": "document_batch_v1",
+                    "source": str(pdf_path),
+                    "total_pages": total_pages,
+                },
+            },
+            processed_at=datetime.now(),
+        )
 
     def _find_content_list_v2_path(
         self, online_result: MinerUOnlineResult
@@ -1830,6 +1982,24 @@ class MinerUOptimizedPipeline:
             timeout = 300.0
         return timeout if timeout > 0 else None
 
+    def _mineru_timeout_seconds(self) -> float | None:
+        try:
+            timeout = float(self.mineru_timeout_seconds)
+        except (TypeError, ValueError):
+            timeout = 0.0
+        return timeout if timeout > 0 else None
+
+    def _local_extraction_progress(
+        self, completed_pages: int, total_pages: int
+    ) -> float:
+        if total_pages <= 0:
+            return LOCAL_EXTRACTION_PROGRESS_START
+        ratio = max(0.0, min(completed_pages / total_pages, 1.0))
+        return (
+            LOCAL_EXTRACTION_PROGRESS_START
+            + (LOCAL_EXTRACTION_PROGRESS_END - LOCAL_EXTRACTION_PROGRESS_START) * ratio
+        )
+
     def _copy_translated_block(
         self, block: ParagraphBlock, translated: str
     ) -> ParagraphBlock:
@@ -1973,8 +2143,8 @@ class MinerUOptimizedPipeline:
 
     async def _run_mineru_call(self, func: Callable, *args, **kwargs):
         call = asyncio.to_thread(func, *args, **kwargs)
-        timeout = self.mineru_timeout_seconds
-        if timeout and timeout > 0:
+        timeout = self._mineru_timeout_seconds()
+        if timeout:
             return await asyncio.wait_for(call, timeout=timeout)
         return await call
 

@@ -295,9 +295,7 @@ ENGINE_FIELD_LABELS_ZH = {
 }
 
 
-def ui_text(
-    zh_text: str, en_text: str, language: str = UI_LANGUAGE_DEFAULT
-) -> str:
+def ui_text(zh_text: str, en_text: str, language: str = UI_LANGUAGE_DEFAULT) -> str:
     if language == "en":
         return en_text
     if language == "bilingual":
@@ -305,9 +303,7 @@ def ui_text(
     return zh_text
 
 
-def ui_markdown(
-    zh_text: str, en_text: str, language: str = UI_LANGUAGE_DEFAULT
-) -> str:
+def ui_markdown(zh_text: str, en_text: str, language: str = UI_LANGUAGE_DEFAULT) -> str:
     return ui_text(zh_text, en_text, language)
 
 
@@ -349,7 +345,9 @@ def page_range_choices(language: str = UI_LANGUAGE_DEFAULT) -> list[tuple[str, s
     ]
 
 
-def rate_limit_mode_choices(language: str = UI_LANGUAGE_DEFAULT) -> list[tuple[str, str]]:
+def rate_limit_mode_choices(
+    language: str = UI_LANGUAGE_DEFAULT,
+) -> list[tuple[str, str]]:
     return [
         (ui_text("每分钟请求数 RPM", "RPM (Requests Per Minute)", language), "RPM"),
         (ui_text("并发请求数", "Concurrent Requests", language), "Concurrent Threads"),
@@ -357,7 +355,9 @@ def rate_limit_mode_choices(language: str = UI_LANGUAGE_DEFAULT) -> list[tuple[s
     ]
 
 
-def watermark_mode_choices(language: str = UI_LANGUAGE_DEFAULT) -> list[tuple[str, str]]:
+def watermark_mode_choices(
+    language: str = UI_LANGUAGE_DEFAULT,
+) -> list[tuple[str, str]]:
     return [
         (ui_text("加水印", "Watermarked", language), "Watermarked"),
         (ui_text("无水印", "No Watermark", language), "No Watermark"),
@@ -372,6 +372,7 @@ def mineru_output_format_choices(
         (ui_text("HTML", "HTML", language), "HTML"),
         (ui_text("两者都导出", "Both", language), "Both"),
     ]
+
 
 # Load configuration
 config_manager = ConfigManager()
@@ -2872,7 +2873,9 @@ with gr.Blocks(
                         )
 
                     # ========== 高级翻译选项 (Accordion) ==========
-                    with gr.Accordion("🔬 高级翻译选项 / Advanced translation", open=False):
+                    with gr.Accordion(
+                        "🔬 高级翻译选项 / Advanced translation", open=False
+                    ):
                         prompt = gr.Textbox(
                             label="自定义翻译提示词",
                             value="",
@@ -3771,7 +3774,7 @@ with gr.Blocks(
                             precision=0,
                             minimum=0,
                             maximum=7200,
-                            info="0表示不限制；在线API建议600秒以上",
+                            info="0表示不限制；本地/vLLM按单页计时，在线API按解析任务计时",
                         )
                         mineru_translation_group_timeout = gr.Number(
                             label="翻译组超时(秒)",
@@ -3922,7 +3925,9 @@ with gr.Blocks(
 
             def update_ui_language(language):
                 babeldoc_detail_updates = [
-                    gr.update(label=engine_field_label(field_name, description, language))
+                    gr.update(
+                        label=engine_field_label(field_name, description, language)
+                    )
                     for field_name, description in zip(
                         __gui_service_arg_names,
                         __gui_service_arg_descriptions,
@@ -3930,7 +3935,9 @@ with gr.Blocks(
                     )
                 ]
                 mineru_detail_updates = [
-                    gr.update(label=engine_field_label(field_name, description, language))
+                    gr.update(
+                        label=engine_field_label(field_name, description, language)
+                    )
                     for field_name, description in zip(
                         mineru_translation_engine_arg_names,
                         mineru_translation_engine_arg_descriptions,
@@ -3946,7 +3953,9 @@ with gr.Blocks(
                         )
                     ),
                     gr.update(
-                        value=ui_markdown("### 📁 文件上传", "### 📁 File upload", language)
+                        value=ui_markdown(
+                            "### 📁 文件上传", "### 📁 File upload", language
+                        )
                     ),
                     gr.update(
                         label=ui_text("输入类型", "Input type", language),
@@ -3986,7 +3995,9 @@ with gr.Blocks(
                             "Page range (e.g., 1,3,5-10,-5)",
                             language,
                         ),
-                        placeholder=ui_text("例如：1,3,5-10", "e.g., 1,3,5-10", language),
+                        placeholder=ui_text(
+                            "例如：1,3,5-10", "e.g., 1,3,5-10", language
+                        ),
                     ),
                     gr.update(
                         label=ui_text(
@@ -4010,7 +4021,9 @@ with gr.Blocks(
                         ),
                     ),
                     gr.update(
-                        label=ui_text("RPM（每分钟请求数）", "RPM (Requests Per Minute)", language),
+                        label=ui_text(
+                            "RPM（每分钟请求数）", "RPM (Requests Per Minute)", language
+                        ),
                         info=ui_text(
                             "多数 API 服务商会提供该参数，例如 OpenAI GPT-4: 500 RPM。",
                             "Most API providers publish this value, such as OpenAI GPT-4: 500 RPM.",
@@ -4026,8 +4039,14 @@ with gr.Blocks(
                         ),
                     ),
                     gr.update(
-                        label=ui_text("QPS（每秒请求数）", "QPS (Queries Per Second)", language),
-                        info=ui_text("每秒发送的请求数量。", "Number of requests sent per second.", language),
+                        label=ui_text(
+                            "QPS（每秒请求数）", "QPS (Queries Per Second)", language
+                        ),
+                        info=ui_text(
+                            "每秒发送的请求数量。",
+                            "Number of requests sent per second.",
+                            language,
+                        ),
                     ),
                     gr.update(
                         label=ui_text("最大工作线程数", "Pool Max Workers", language),
@@ -4037,8 +4056,16 @@ with gr.Blocks(
                             language,
                         ),
                     ),
-                    gr.update(label=ui_text("禁用单语输出", "Disable monolingual output", language)),
-                    gr.update(label=ui_text("禁用双语输出", "Disable bilingual output", language)),
+                    gr.update(
+                        label=ui_text(
+                            "禁用单语输出", "Disable monolingual output", language
+                        )
+                    ),
+                    gr.update(
+                        label=ui_text(
+                            "禁用双语输出", "Disable bilingual output", language
+                        )
+                    ),
                     gr.update(
                         label=ui_text(
                             "双语 PDF 中译文页在前",
@@ -4058,15 +4085,29 @@ with gr.Blocks(
                         choices=watermark_mode_choices(language),
                     ),
                     gr.update(
-                        label=ui_text("自定义翻译提示词", "Custom prompt for translation", language),
+                        label=ui_text(
+                            "自定义翻译提示词",
+                            "Custom prompt for translation",
+                            language,
+                        ),
                         placeholder=ui_text(
                             "给翻译模型的自定义提示词",
                             "Custom prompt for the translator",
                             language,
                         ),
                     ),
-                    gr.update(label=ui_text("自定义系统提示词", "Custom System Prompt", language)),
-                    gr.update(label=ui_text("最小翻译文本长度", "Minimum text length to translate", language)),
+                    gr.update(
+                        label=ui_text(
+                            "自定义系统提示词", "Custom System Prompt", language
+                        )
+                    ),
+                    gr.update(
+                        label=ui_text(
+                            "最小翻译文本长度",
+                            "Minimum text length to translate",
+                            language,
+                        )
+                    ),
                     gr.update(
                         label=ui_text(
                             "文档布局分析 RPC 服务（可选）",
@@ -4074,7 +4115,13 @@ with gr.Blocks(
                             language,
                         )
                     ),
-                    gr.update(label=ui_text("禁用自动术语提取", "Disable auto extract glossary", language)),
+                    gr.update(
+                        label=ui_text(
+                            "禁用自动术语提取",
+                            "Disable auto extract glossary",
+                            language,
+                        )
+                    ),
                     gr.update(
                         label=ui_text(
                             "保存自动提取的术语表",
@@ -4082,84 +4129,437 @@ with gr.Blocks(
                             language,
                         )
                     ),
-                    gr.update(label=ui_text("译文主字体族", "Primary font family for translated text", language)),
+                    gr.update(
+                        label=ui_text(
+                            "译文主字体族",
+                            "Primary font family for translated text",
+                            language,
+                        )
+                    ),
                     gr.update(label=ui_text("术语表文件", "Glossary File", language)),
-                    gr.update(value=ui_markdown("#### PDF高级选项", "#### PDF advanced options", language)),
-                    gr.update(label=ui_text("跳过清理（可能提升兼容性）", "Skip clean (maybe improve compatibility)", language)),
-                    gr.update(label=ui_text("禁用富文本翻译（可能提升兼容性）", "Disable rich text translation (maybe improve compatibility)", language)),
-                    gr.update(label=ui_text("增强兼容性（自动启用跳过清理和禁用富文本）", "Enhance compatibility (auto-enables skip_clean and disable_rich_text)", language)),
-                    gr.update(label=ui_text("强制将短行拆成不同段落", "Force split short lines into different paragraphs", language)),
-                    gr.update(label=ui_text("短行拆分阈值系数", "Split threshold factor for short lines", language)),
-                    gr.update(label=ui_text("翻译表格文本（实验）", "Translate table text (experimental)", language)),
-                    gr.update(label=ui_text("跳过扫描件检测", "Skip scanned detection", language)),
-                    gr.update(label=ui_text("OCR 兼容模式（实验，会在后端自动启用跳过扫描件检测）", "OCR workaround (experimental, will auto enable Skip scanned detection in backend)", language)),
-                    gr.update(label=ui_text("自动启用 OCR 兼容模式（适合重度扫描文档）", "Auto enable OCR workaround (enable automatic OCR workaround for heavily scanned documents)", language)),
-                    gr.update(label=ui_text("每个分片最大页数（自动拆分翻译，0 表示不限）", "Maximum pages per part (for auto-split translation, 0 means no limit)", language)),
-                    gr.update(label=ui_text("公式文本字体识别规则（正则，不建议修改）", "Font pattern to identify formula text (regex, not recommended to change)", language)),
-                    gr.update(label=ui_text("公式文本字符识别规则（正则，不建议修改）", "Character pattern to identify formula text (regex, not recommended to change)", language)),
+                    gr.update(
+                        value=ui_markdown(
+                            "#### PDF高级选项", "#### PDF advanced options", language
+                        )
+                    ),
+                    gr.update(
+                        label=ui_text(
+                            "跳过清理（可能提升兼容性）",
+                            "Skip clean (maybe improve compatibility)",
+                            language,
+                        )
+                    ),
+                    gr.update(
+                        label=ui_text(
+                            "禁用富文本翻译（可能提升兼容性）",
+                            "Disable rich text translation (maybe improve compatibility)",
+                            language,
+                        )
+                    ),
+                    gr.update(
+                        label=ui_text(
+                            "增强兼容性（自动启用跳过清理和禁用富文本）",
+                            "Enhance compatibility (auto-enables skip_clean and disable_rich_text)",
+                            language,
+                        )
+                    ),
+                    gr.update(
+                        label=ui_text(
+                            "强制将短行拆成不同段落",
+                            "Force split short lines into different paragraphs",
+                            language,
+                        )
+                    ),
+                    gr.update(
+                        label=ui_text(
+                            "短行拆分阈值系数",
+                            "Split threshold factor for short lines",
+                            language,
+                        )
+                    ),
+                    gr.update(
+                        label=ui_text(
+                            "翻译表格文本（实验）",
+                            "Translate table text (experimental)",
+                            language,
+                        )
+                    ),
+                    gr.update(
+                        label=ui_text(
+                            "跳过扫描件检测", "Skip scanned detection", language
+                        )
+                    ),
+                    gr.update(
+                        label=ui_text(
+                            "OCR 兼容模式（实验，会在后端自动启用跳过扫描件检测）",
+                            "OCR workaround (experimental, will auto enable Skip scanned detection in backend)",
+                            language,
+                        )
+                    ),
+                    gr.update(
+                        label=ui_text(
+                            "自动启用 OCR 兼容模式（适合重度扫描文档）",
+                            "Auto enable OCR workaround (enable automatic OCR workaround for heavily scanned documents)",
+                            language,
+                        )
+                    ),
+                    gr.update(
+                        label=ui_text(
+                            "每个分片最大页数（自动拆分翻译，0 表示不限）",
+                            "Maximum pages per part (for auto-split translation, 0 means no limit)",
+                            language,
+                        )
+                    ),
+                    gr.update(
+                        label=ui_text(
+                            "公式文本字体识别规则（正则，不建议修改）",
+                            "Font pattern to identify formula text (regex, not recommended to change)",
+                            language,
+                        )
+                    ),
+                    gr.update(
+                        label=ui_text(
+                            "公式文本字符识别规则（正则，不建议修改）",
+                            "Character pattern to identify formula text (regex, not recommended to change)",
+                            language,
+                        )
+                    ),
                     gr.update(label=ui_text("忽略缓存", "Ignore cache", language)),
-                    gr.update(value=ui_markdown("#### BabelDOC高级选项", "#### BabelDOC advanced options", language)),
-                    gr.update(label=ui_text("合并交替行号", "Merge alternating line numbers", language), info=ui_text("处理带行号文档中的交替行号和正文段落。", "Handle alternating line numbers and text paragraphs in documents with line numbers.", language)),
-                    gr.update(label=ui_text("移除非公式行", "Remove non-formula lines", language), info=ui_text("移除段落区域内的非公式行。", "Remove non-formula lines within paragraph areas.", language)),
-                    gr.update(label=ui_text("非公式行 IoU 阈值", "Non-formula line IoU threshold", language), info=ui_text("用于识别非公式行的 IoU 阈值。", "IoU threshold for identifying non-formula lines.", language)),
-                    gr.update(label=ui_text("图表保护阈值", "Figure/table protection threshold", language), info=ui_text("图表区域保护阈值，图表内的线条不会被处理。", "Protection threshold for figures and tables; lines within figures/tables will not be processed.", language)),
-                    gr.update(label=ui_text("跳过公式偏移计算", "Skip formula offset calculation", language), info=ui_text("处理过程中跳过公式偏移计算。", "Skip formula offset calculation during processing.", language)),
-                    gr.update(value=ui_text("🚀 开始翻译", "🚀 Start translation", language)),
+                    gr.update(
+                        value=ui_markdown(
+                            "#### BabelDOC高级选项",
+                            "#### BabelDOC advanced options",
+                            language,
+                        )
+                    ),
+                    gr.update(
+                        label=ui_text(
+                            "合并交替行号", "Merge alternating line numbers", language
+                        ),
+                        info=ui_text(
+                            "处理带行号文档中的交替行号和正文段落。",
+                            "Handle alternating line numbers and text paragraphs in documents with line numbers.",
+                            language,
+                        ),
+                    ),
+                    gr.update(
+                        label=ui_text(
+                            "移除非公式行", "Remove non-formula lines", language
+                        ),
+                        info=ui_text(
+                            "移除段落区域内的非公式行。",
+                            "Remove non-formula lines within paragraph areas.",
+                            language,
+                        ),
+                    ),
+                    gr.update(
+                        label=ui_text(
+                            "非公式行 IoU 阈值",
+                            "Non-formula line IoU threshold",
+                            language,
+                        ),
+                        info=ui_text(
+                            "用于识别非公式行的 IoU 阈值。",
+                            "IoU threshold for identifying non-formula lines.",
+                            language,
+                        ),
+                    ),
+                    gr.update(
+                        label=ui_text(
+                            "图表保护阈值",
+                            "Figure/table protection threshold",
+                            language,
+                        ),
+                        info=ui_text(
+                            "图表区域保护阈值，图表内的线条不会被处理。",
+                            "Protection threshold for figures and tables; lines within figures/tables will not be processed.",
+                            language,
+                        ),
+                    ),
+                    gr.update(
+                        label=ui_text(
+                            "跳过公式偏移计算",
+                            "Skip formula offset calculation",
+                            language,
+                        ),
+                        info=ui_text(
+                            "处理过程中跳过公式偏移计算。",
+                            "Skip formula offset calculation during processing.",
+                            language,
+                        ),
+                    ),
+                    gr.update(
+                        value=ui_text("🚀 开始翻译", "🚀 Start translation", language)
+                    ),
                     gr.update(value=ui_text("⏹️ 取消", "⏹️ Cancel", language)),
-                    gr.update(value=ui_markdown("## 📥 翻译结果", "## 📥 Translation results", language)),
-                    gr.update(label=ui_text("下载译文 (单语)", "Download translation (monolingual)", language)),
-                    gr.update(label=ui_text("下载译文 (双语)", "Download translation (bilingual)", language)),
-                    gr.update(label=ui_text("下载自动提取的术语表", "Download auto-extracted glossary", language)),
+                    gr.update(
+                        value=ui_markdown(
+                            "## 📥 翻译结果", "## 📥 Translation results", language
+                        )
+                    ),
+                    gr.update(
+                        label=ui_text(
+                            "下载译文 (单语)",
+                            "Download translation (monolingual)",
+                            language,
+                        )
+                    ),
+                    gr.update(
+                        label=ui_text(
+                            "下载译文 (双语)",
+                            "Download translation (bilingual)",
+                            language,
+                        )
+                    ),
+                    gr.update(
+                        label=ui_text(
+                            "下载自动提取的术语表",
+                            "Download auto-extracted glossary",
+                            language,
+                        )
+                    ),
                     gr.update(value=ui_markdown("## 预览", "## Preview", language)),
                     gr.update(label=ui_text("PDF预览", "PDF Preview", language)),
-                    gr.update(label=ui_text("Markdown 预览", "Markdown Preview", language)),
+                    gr.update(
+                        label=ui_text("Markdown 预览", "Markdown Preview", language)
+                    ),
                     gr.update(value=ui_markdown("## 历史记录", "## History", language)),
-                    gr.update(label=ui_text("点击文件预览", "Click a file to preview", language)),
-                    gr.update(label=ui_text("下载历史文件", "Download history file", language)),
-                    gr.update(value=ui_text("刷新历史记录", "Refresh history", language)),
-                    gr.update(value=ui_text("删除选中文件", "Delete selected file", language)),
-                    gr.update(value=ui_text("下载历史文件", "Download history file", language)),
-                    gr.update(value=ui_markdown("## 扫描PDF翻译 (MinerU)", "## Scanned PDF Translation (MinerU)", language)),
-                    gr.update(value=ui_markdown("### 📁 文件上传", "### 📁 File upload", language)),
-                    gr.update(label=ui_text("上传PDF文件", "Upload PDF file", language)),
-                    gr.update(value=ui_markdown("### 🔧 翻译引擎", "### 🔧 Translation engine", language)),
-                    gr.update(value=ui_text("免费翻译服务由 [SiliconFlow](https://siliconflow.cn) 提供", "Free translation service provided by [SiliconFlow](https://siliconflow.cn)", language)),
+                    gr.update(
+                        label=ui_text(
+                            "点击文件预览", "Click a file to preview", language
+                        )
+                    ),
+                    gr.update(
+                        label=ui_text("下载历史文件", "Download history file", language)
+                    ),
+                    gr.update(
+                        value=ui_text("刷新历史记录", "Refresh history", language)
+                    ),
+                    gr.update(
+                        value=ui_text("删除选中文件", "Delete selected file", language)
+                    ),
+                    gr.update(
+                        value=ui_text("下载历史文件", "Download history file", language)
+                    ),
+                    gr.update(
+                        value=ui_markdown(
+                            "## 扫描PDF翻译 (MinerU)",
+                            "## Scanned PDF Translation (MinerU)",
+                            language,
+                        )
+                    ),
+                    gr.update(
+                        value=ui_markdown(
+                            "### 📁 文件上传", "### 📁 File upload", language
+                        )
+                    ),
+                    gr.update(
+                        label=ui_text("上传PDF文件", "Upload PDF file", language)
+                    ),
+                    gr.update(
+                        value=ui_markdown(
+                            "### 🔧 翻译引擎", "### 🔧 Translation engine", language
+                        )
+                    ),
+                    gr.update(
+                        value=ui_text(
+                            "免费翻译服务由 [SiliconFlow](https://siliconflow.cn) 提供",
+                            "Free translation service provided by [SiliconFlow](https://siliconflow.cn)",
+                            language,
+                        )
+                    ),
                     gr.update(label=ui_text("翻译引擎", "Service", language)),
                     gr.update(value=ui_text("保存设置", "Save settings", language)),
                     gr.update(value=ui_text("测试连接", "Test connection", language)),
-                    gr.update(value=ui_markdown("### 🌐 翻译设置", "### 🌐 Translation settings", language)),
+                    gr.update(
+                        value=ui_markdown(
+                            "### 🌐 翻译设置", "### 🌐 Translation settings", language
+                        )
+                    ),
                     gr.update(label=ui_text("源语言", "Translate from", language)),
                     gr.update(label=ui_text("目标语言", "Translate to", language)),
-                    gr.update(label=ui_text("输出格式", "Output format", language), info=ui_text("选择翻译结果的输出格式", "Choose the output format for translated results", language), choices=mineru_output_format_choices(language)),
-                    gr.update(label=ui_text("模型路径", "Model path", language), info=ui_text("仅本地/vLLM后端使用：HuggingFace模型ID或本地路径", "Only for local/vLLM backends: HuggingFace model ID or local path", language)),
-                    gr.update(label=ui_text("后端", "Backend", language), info=ui_text("online-api: 官方精准解析 | online-agent: 官方轻量解析 | http-client: 本地vLLM", "online-api: official precise API | online-agent: official lightweight API | http-client: local vLLM", language)),
-                    gr.update(label=ui_text("vLLM服务地址", "vLLM service URL", language), info=ui_text("仅 backend=http-client 时使用，指向 OpenAI-compatible vLLM 服务", "Only used when backend=http-client; points to an OpenAI-compatible vLLM service", language)),
-                    gr.update(label=ui_text("DPI", "DPI", language), info=ui_text("仅本地/vLLM后端使用：图像渲染DPI，影响识别质量", "Only for local/vLLM backends: image rendering DPI affects recognition quality", language)),
-                    gr.update(label=ui_text("识别/解析超时(秒)", "Recognition/parse timeout (seconds)", language), info=ui_text("0表示不限制；在线API建议600秒以上", "0 means no limit; 600+ seconds is recommended for online APIs", language)),
-                    gr.update(label=ui_text("翻译组超时(秒)", "Translation group timeout (seconds)", language), info=ui_text("0表示不限制；用于外部翻译模型每组请求", "0 means no limit; used for each grouped request to the translation model", language)),
-                    gr.update(label=ui_text("MinerU API Base URL", "MinerU API Base URL", language), info=ui_text("官方默认: https://mineru.net", "Official default: https://mineru.net", language)),
-                    gr.update(label=ui_text("MinerU精准API Token", "MinerU precise API token", language), info=ui_text("仅 online-api 需要；也可用环境变量 MINERU_API_TOKEN", "Only needed for online-api; MINERU_API_TOKEN environment variable is also supported", language)),
-                    gr.update(label=ui_text("MinerU精准API模型版本", "MinerU precise API model version", language), info=ui_text("PDF/图片建议 vlm；HTML 文件才用 MinerU-HTML", "Use vlm for PDFs/images; MinerU-HTML is only for HTML files", language)),
-                    gr.update(label=ui_text("MinerU OCR语言包", "MinerU OCR language pack", language), info=ui_text("如 ch/en/japan/korean/chinese_cht/latin/cyrillic 等", "Examples: ch/en/japan/korean/chinese_cht/latin/cyrillic", language)),
+                    gr.update(
+                        label=ui_text("输出格式", "Output format", language),
+                        info=ui_text(
+                            "选择翻译结果的输出格式",
+                            "Choose the output format for translated results",
+                            language,
+                        ),
+                        choices=mineru_output_format_choices(language),
+                    ),
+                    gr.update(
+                        label=ui_text("模型路径", "Model path", language),
+                        info=ui_text(
+                            "仅本地/vLLM后端使用：HuggingFace模型ID或本地路径",
+                            "Only for local/vLLM backends: HuggingFace model ID or local path",
+                            language,
+                        ),
+                    ),
+                    gr.update(
+                        label=ui_text("后端", "Backend", language),
+                        info=ui_text(
+                            "online-api: 官方精准解析 | online-agent: 官方轻量解析 | http-client: 本地vLLM",
+                            "online-api: official precise API | online-agent: official lightweight API | http-client: local vLLM",
+                            language,
+                        ),
+                    ),
+                    gr.update(
+                        label=ui_text("vLLM服务地址", "vLLM service URL", language),
+                        info=ui_text(
+                            "仅 backend=http-client 时使用，指向 OpenAI-compatible vLLM 服务",
+                            "Only used when backend=http-client; points to an OpenAI-compatible vLLM service",
+                            language,
+                        ),
+                    ),
+                    gr.update(
+                        label=ui_text("DPI", "DPI", language),
+                        info=ui_text(
+                            "仅本地/vLLM后端使用：图像渲染DPI，影响识别质量",
+                            "Only for local/vLLM backends: image rendering DPI affects recognition quality",
+                            language,
+                        ),
+                    ),
+                    gr.update(
+                        label=ui_text(
+                            "识别/解析超时(秒)",
+                            "Recognition/parse timeout (seconds)",
+                            language,
+                        ),
+                        info=ui_text(
+                            "0表示不限制；本地/vLLM按单页计时，在线API按解析任务计时",
+                            "0 means no limit; local/vLLM timeout is per page, online API timeout is per parse task",
+                            language,
+                        ),
+                    ),
+                    gr.update(
+                        label=ui_text(
+                            "翻译组超时(秒)",
+                            "Translation group timeout (seconds)",
+                            language,
+                        ),
+                        info=ui_text(
+                            "0表示不限制；用于外部翻译模型每组请求",
+                            "0 means no limit; used for each grouped request to the translation model",
+                            language,
+                        ),
+                    ),
+                    gr.update(
+                        label=ui_text(
+                            "MinerU API Base URL", "MinerU API Base URL", language
+                        ),
+                        info=ui_text(
+                            "官方默认: https://mineru.net",
+                            "Official default: https://mineru.net",
+                            language,
+                        ),
+                    ),
+                    gr.update(
+                        label=ui_text(
+                            "MinerU精准API Token", "MinerU precise API token", language
+                        ),
+                        info=ui_text(
+                            "仅 online-api 需要；也可用环境变量 MINERU_API_TOKEN",
+                            "Only needed for online-api; MINERU_API_TOKEN environment variable is also supported",
+                            language,
+                        ),
+                    ),
+                    gr.update(
+                        label=ui_text(
+                            "MinerU精准API模型版本",
+                            "MinerU precise API model version",
+                            language,
+                        ),
+                        info=ui_text(
+                            "PDF/图片建议 vlm；HTML 文件才用 MinerU-HTML",
+                            "Use vlm for PDFs/images; MinerU-HTML is only for HTML files",
+                            language,
+                        ),
+                    ),
+                    gr.update(
+                        label=ui_text(
+                            "MinerU OCR语言包", "MinerU OCR language pack", language
+                        ),
+                        info=ui_text(
+                            "如 ch/en/japan/korean/chinese_cht/latin/cyrillic 等",
+                            "Examples: ch/en/japan/korean/chinese_cht/latin/cyrillic",
+                            language,
+                        ),
+                    ),
                     gr.update(label=ui_text("启用OCR", "Enable OCR", language)),
-                    gr.update(label=ui_text("启用公式识别", "Enable formula recognition", language)),
-                    gr.update(label=ui_text("启用表格识别", "Enable table recognition", language)),
-                    gr.update(label=ui_text("在线API轮询间隔(秒)", "Online API polling interval (seconds)", language)),
-                    gr.update(label=ui_text("精准API绕过缓存", "Bypass precise API cache", language)),
-                    gr.update(label=ui_text("精准API缓存容忍时间(秒)", "Precise API cache tolerance (seconds)", language)),
-                    gr.update(value=ui_text("🚀 开始翻译", "🚀 Start translation", language)),
-                    gr.update(label=ui_text("📊 翻译进度", "📊 Translation progress", language)),
-                    gr.update(label=ui_text("📥 下载翻译结果", "📥 Download translation results", language)),
-                    gr.update(value=ui_markdown("## PDF预览", "## PDF Preview", language)),
+                    gr.update(
+                        label=ui_text(
+                            "启用公式识别", "Enable formula recognition", language
+                        )
+                    ),
+                    gr.update(
+                        label=ui_text(
+                            "启用表格识别", "Enable table recognition", language
+                        )
+                    ),
+                    gr.update(
+                        label=ui_text(
+                            "在线API轮询间隔(秒)",
+                            "Online API polling interval (seconds)",
+                            language,
+                        )
+                    ),
+                    gr.update(
+                        label=ui_text(
+                            "精准API绕过缓存", "Bypass precise API cache", language
+                        )
+                    ),
+                    gr.update(
+                        label=ui_text(
+                            "精准API缓存容忍时间(秒)",
+                            "Precise API cache tolerance (seconds)",
+                            language,
+                        )
+                    ),
+                    gr.update(
+                        value=ui_text("🚀 开始翻译", "🚀 Start translation", language)
+                    ),
+                    gr.update(
+                        label=ui_text(
+                            "📊 翻译进度", "📊 Translation progress", language
+                        )
+                    ),
+                    gr.update(
+                        label=ui_text(
+                            "📥 下载翻译结果",
+                            "📥 Download translation results",
+                            language,
+                        )
+                    ),
+                    gr.update(
+                        value=ui_markdown("## PDF预览", "## PDF Preview", language)
+                    ),
                     gr.update(label=ui_text("PDF预览", "PDF Preview", language)),
-                    gr.update(value=ui_markdown("## Markdown预览", "## Markdown Preview", language)),
-                    gr.update(label=ui_text("Markdown预览", "Markdown Preview", language)),
+                    gr.update(
+                        value=ui_markdown(
+                            "## Markdown预览", "## Markdown Preview", language
+                        )
+                    ),
+                    gr.update(
+                        label=ui_text("Markdown预览", "Markdown Preview", language)
+                    ),
                     gr.update(value=ui_markdown("## 历史记录", "## History", language)),
-                    gr.update(label=ui_text("点击文件预览", "Click a file to preview", language)),
-                    gr.update(label=ui_text("下载历史文件", "Download history file", language)),
-                    gr.update(value=ui_text("刷新历史记录", "Refresh history", language)),
-                    gr.update(value=ui_text("删除选中文件", "Delete selected file", language)),
-                    gr.update(value=ui_text("下载历史文件", "Download history file", language)),
+                    gr.update(
+                        label=ui_text(
+                            "点击文件预览", "Click a file to preview", language
+                        )
+                    ),
+                    gr.update(
+                        label=ui_text("下载历史文件", "Download history file", language)
+                    ),
+                    gr.update(
+                        value=ui_text("刷新历史记录", "Refresh history", language)
+                    ),
+                    gr.update(
+                        value=ui_text("删除选中文件", "Delete selected file", language)
+                    ),
+                    gr.update(
+                        value=ui_text("下载历史文件", "Download history file", language)
+                    ),
                 ]
                 return updates + babeldoc_detail_updates + mineru_detail_updates
 
@@ -4981,7 +5381,12 @@ with gr.Blocks(
                     progress_text += f"  ✓ OCR语言包: {api_language_value}\n"
                     progress_text += f"  ✓ OCR/公式/表格: {bool(api_is_ocr)}/{bool(api_enable_formula)}/{bool(api_enable_table)}\n"
                     progress_text += f"  ✓ 轮询间隔: {max(1, poll_interval_value)}秒\n"
-                progress_text += f"  ✓ 超时: {timeout_value}秒\n\n"
+                if backend_value in MINERU_ONLINE_BACKENDS:
+                    progress_text += f"  ✓ 解析任务超时: {timeout_value}秒\n\n"
+                else:
+                    progress_text += (
+                        f"  ✓ 单页识别超时: {timeout_value}秒（0表示不限制）\n\n"
+                    )
                 yield progress_text, gr.update(visible=False), gr.update(visible=True)
 
                 # 5. 执行同步翻译（简化版本）

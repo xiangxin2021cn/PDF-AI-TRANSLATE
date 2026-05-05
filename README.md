@@ -10,11 +10,11 @@ PDF AI Translate 是基于 [PDFMathTranslate / PDFMathTranslate-next](https://gi
 
 Windows x64 安装包已发布在 GitHub Release：
 
-[PDF-AI-TRANSLATE-2.5.9-windows-x64-setup.exe](https://github.com/xiangxin2021cn/PDF-AI-TRANSLATE/releases/download/v2.5.9/PDF-AI-TRANSLATE-2.5.9-windows-x64-setup.exe)
+[PDF-AI-TRANSLATE-2.5.10-windows-x64-setup.exe](https://github.com/xiangxin2021cn/PDF-AI-TRANSLATE/releases/download/v2.5.10/PDF-AI-TRANSLATE-2.5.10-windows-x64-setup.exe)
 
 Release 页面：
 
-[https://github.com/xiangxin2021cn/PDF-AI-TRANSLATE/releases/tag/v2.5.9](https://github.com/xiangxin2021cn/PDF-AI-TRANSLATE/releases/tag/v2.5.9)
+[https://github.com/xiangxin2021cn/PDF-AI-TRANSLATE/releases/tag/v2.5.10](https://github.com/xiangxin2021cn/PDF-AI-TRANSLATE/releases/tag/v2.5.10)
 
 ![1777926673458](image/README/1777926673458.png)
 
@@ -26,6 +26,7 @@ Release 页面：
 - 美化 Web 与 Windows 桌面共用界面，强化常用翻译参数、历史文件和结果预览的可用性。
 - 提升 PDF 预览清晰度，避免本地预览在放大时把低分辨率 canvas 直接拉伸成模糊画面。
 - 创新性加入 MinerU 增强流程，用于重度扫描 PDF、图片型论文、版面复杂文档的结构识别与翻译预处理。
+- 增强本地 MinerU 大文件处理：本地/vLLM 识别改为按页执行、持续上报状态并缓存页面结果，降低 500 页、1000 页扫描 PDF 因长时间无响应而中断的概率。
 - 提供 Rust/Tauri Windows 桌面壳，内置本地 Python 运行环境，面向非开发用户提供一键安装体验。
 
 ## 两种文档翻译路线
@@ -37,6 +38,8 @@ Release 页面：
 ### MinerU 增强路线
 
 适合扫描件、图片型 PDF、OCR 需求较重、原文结构复杂或普通 PDF 解析效果不理想的文档。MinerU 负责更强的文档结构解析，后续再进入翻译与预览流程。
+
+从 2.5.10 起，本地/vLLM MinerU 路线不再把整本 PDF 绑定到一次总超时识别中，而是按页识别并逐页落盘。大文件运行中会持续刷新“仍在识别”的状态；如果中途失败或手动停止，已完成页面会保留在项目缓存中，后续重新执行可继续利用已有结果。
 
 ## 使用方式
 

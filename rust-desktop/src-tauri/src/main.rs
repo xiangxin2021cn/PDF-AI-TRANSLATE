@@ -18,7 +18,7 @@ use tauri::{Manager, Url, WebviewUrl};
 use zip::ZipArchive;
 
 const APP_NAME: &str = "PDF文件翻译工具";
-const RUNTIME_VERSION: &str = "2.5.9";
+const RUNTIME_VERSION: &str = "2.5.10";
 
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x08000000;

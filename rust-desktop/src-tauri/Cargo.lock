@@ -2118,7 +2118,7 @@ dependencies = [
 
 [[package]]
 name = "pdf-translator-rust-desktop"
-version = "2.5.9"
+version = "2.5.10"
 dependencies = [
  "rfd",
  "serde_json",

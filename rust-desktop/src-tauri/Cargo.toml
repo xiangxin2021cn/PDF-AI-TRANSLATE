@@ -1,6 +1,6 @@
 [package]
 name = "pdf-translator-rust-desktop"
-version = "2.5.9"
+version = "2.5.10"
 description = "PDF文件翻译工具 Rust desktop shell"
 authors = ["Always Pi AI Studio"]
 license = "AGPL-3.0"

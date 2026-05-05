@@ -21,6 +21,7 @@ def _warn_once(message: str) -> None:
     _emitted_validation_warnings.add(message)
     log.warning(message)
 
+
 # Very Important!
 # Only the following fields can be used for Field:
 # default
@@ -49,8 +50,12 @@ class BasicSettings(BaseModel):
     )
     debug: bool = Field(default=False, description="Enable debug mode")
     gui: bool = Field(default=False, description="Enable GUI mode")
-    desktop_gui: bool = Field(default=False, description="Use desktop GUI instead of web GUI")
-    webview_gui: bool = Field(default=False, description="Use webview desktop wrapper for web GUI")
+    desktop_gui: bool = Field(
+        default=False, description="Use desktop GUI instead of web GUI"
+    )
+    webview_gui: bool = Field(
+        default=False, description="Use webview desktop wrapper for web GUI"
+    )
     warmup: bool = Field(
         default=False, description="Only download and verify required assets then exit"
     )
@@ -130,73 +135,55 @@ class TranslationSettings(BaseModel):
 class MinerUSettings(BaseModel):
     """MinerU相关配置"""
 
-    enabled: bool = Field(
-        default=False,
-        description="启用MinerU翻译路径"
-    )
+    enabled: bool = Field(default=False, description="启用MinerU翻译路径")
     backend: str = Field(
         default="transformers",
-        description="MinerU后端类型: 'transformers'(本地), 'http-client'(本地/远程vLLM), 'online-api'(官方精准API), 'online-agent'(官方轻量API)"
+        description="MinerU后端类型: 'transformers'(本地), 'http-client'(本地/远程vLLM), 'online-api'(官方精准API), 'online-agent'(官方轻量API)",
     )
     model_path: str = Field(
         default="opendatalab/MinerU2.5-Pro-2604-1.2B",
-        description="MinerU模型路径或HuggingFace模型ID"
+        description="MinerU模型路径或HuggingFace模型ID",
     )
     server_url: str | None = Field(
-        default=None,
-        description="MinerU HTTP服务器URL (仅backend='http-client'时需要)"
+        default=None, description="MinerU HTTP服务器URL (仅backend='http-client'时需要)"
     )
-    dpi: int = Field(
-        default=260,
-        description="PDF渲染DPI,影响识别质量"
-    )
+    dpi: int = Field(default=260, description="PDF渲染DPI,影响识别质量")
     timeout_seconds: int = Field(
         default=600,
-        description="MinerU识别/在线解析超时时间(秒), 0表示不限制"
+        description="MinerU识别/在线解析超时时间(秒), 0表示不限制；本地/vLLM按单页计时，在线API按解析任务计时",
     )
     api_base_url: str = Field(
-        default="https://mineru.net",
-        description="MinerU官方API Base URL"
+        default="https://mineru.net", description="MinerU官方API Base URL"
     )
     api_token: str | None = Field(
         default=None,
-        description="MinerU官方精准API Token，可留空使用环境变量MINERU_API_TOKEN"
+        description="MinerU官方精准API Token，可留空使用环境变量MINERU_API_TOKEN",
     )
     api_model_version: str = Field(
         default="vlm",
-        description="MinerU官方精准API模型版本: pipeline, vlm, MinerU-HTML"
+        description="MinerU官方精准API模型版本: pipeline, vlm, MinerU-HTML",
     )
     api_language: str = Field(
-        default="ch",
-        description="MinerU OCR语言包，如ch/en/japan/korean/latin等"
+        default="ch", description="MinerU OCR语言包，如ch/en/japan/korean/latin等"
     )
-    api_is_ocr: bool = Field(
-        default=True,
-        description="MinerU在线API是否启用OCR"
-    )
+    api_is_ocr: bool = Field(default=True, description="MinerU在线API是否启用OCR")
     api_enable_formula: bool = Field(
-        default=True,
-        description="MinerU在线API是否启用公式识别"
+        default=True, description="MinerU在线API是否启用公式识别"
     )
     api_enable_table: bool = Field(
-        default=True,
-        description="MinerU在线API是否启用表格识别"
+        default=True, description="MinerU在线API是否启用表格识别"
     )
     api_poll_interval_seconds: int = Field(
-        default=3,
-        description="MinerU在线API轮询间隔(秒)"
+        default=3, description="MinerU在线API轮询间隔(秒)"
     )
     api_no_cache: bool = Field(
-        default=False,
-        description="MinerU精准API是否绕过服务端缓存"
+        default=False, description="MinerU精准API是否绕过服务端缓存"
     )
     api_cache_tolerance: int = Field(
-        default=900,
-        description="MinerU精准API缓存容忍时间(秒)"
+        default=900, description="MinerU精准API缓存容忍时间(秒)"
     )
     translation_group_timeout_seconds: int = Field(
-        default=300,
-        description="MinerU外部翻译每组请求超时时间(秒), 0表示不限制"
+        default=300, description="MinerU外部翻译每组请求超时时间(秒), 0表示不限制"
     )
 
 
@@ -213,12 +200,11 @@ class PDFSettings(BaseModel):
         default=False, description="Do not output monolingual PDF files"
     )
     output_format: str = Field(
-        default="pdf",
-        description="输出格式: 'pdf', 'markdown', 'html', 'json'"
+        default="pdf", description="输出格式: 'pdf', 'markdown', 'html', 'json'"
     )
     translation_path: str = Field(
         default="babeldoc",
-        description="翻译路径: 'babeldoc'(保持PDF格式) 或 'mineru'(结构化输出)"
+        description="翻译路径: 'babeldoc'(保持PDF格式) 或 'mineru'(结构化输出)",
     )
     formular_font_pattern: str | None = Field(
         default=None, description="Font pattern to identify formula text"
@@ -308,16 +294,12 @@ class SettingsModel(BaseModel):
     translate_engine_settings: TRANSLATION_ENGINE_SETTING_TYPE | None = Field(
         default=None,
         description="Translation engine settings",
-        discriminator="translate_engine_type"
+        discriminator="translate_engine_type",
     )
     mineru: MinerUSettings = Field(
-        default_factory=MinerUSettings,
-        description="MinerU相关配置"
+        default_factory=MinerUSettings, description="MinerU相关配置"
     )
-    storage_root: str = Field(
-        default="output",
-        description="本地历史文件输出目录"
-    )
+    storage_root: str = Field(default="output", description="本地历史文件输出目录")
 
     def clone(self) -> SettingsModel:
         return self.model_copy(deep=True)
@@ -472,16 +454,24 @@ class SettingsModel(BaseModel):
                 )
 
             if self.mineru.timeout_seconds < 0:
-                raise ValueError("mineru.timeout_seconds must be greater than or equal to 0")
+                raise ValueError(
+                    "mineru.timeout_seconds must be greater than or equal to 0"
+                )
 
             if self.mineru.translation_group_timeout_seconds < 0:
-                raise ValueError("mineru.translation_group_timeout_seconds must be greater than or equal to 0")
+                raise ValueError(
+                    "mineru.translation_group_timeout_seconds must be greater than or equal to 0"
+                )
 
             if self.mineru.api_poll_interval_seconds < 1:
-                raise ValueError("mineru.api_poll_interval_seconds must be greater than or equal to 1")
+                raise ValueError(
+                    "mineru.api_poll_interval_seconds must be greater than or equal to 1"
+                )
 
             if self.mineru.api_model_version not in {"pipeline", "vlm", "MinerU-HTML"}:
-                raise ValueError("mineru.api_model_version must be pipeline, vlm, or MinerU-HTML")
+                raise ValueError(
+                    "mineru.api_model_version must be pipeline, vlm, or MinerU-HTML"
+                )
 
             if mineru_backend == "online-api" and not (
                 self.mineru.api_token or os.getenv("MINERU_API_TOKEN")
